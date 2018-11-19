@@ -1,0 +1,21 @@
+# R created files
+*.Rproj
+*.Rproj.user
+*.Rhistory
+*.Ruserdata
+*.history
+*.RData
+
+
+# Files that come with knitting the document, not worth sharing
+emopoint.pdf
+*.tex
+*.fff
+*.docx
+
+
+# Folders
+/analysis/ticon_analysis_cache/*
+/analysis/ticon_analysis_files/*
+
+

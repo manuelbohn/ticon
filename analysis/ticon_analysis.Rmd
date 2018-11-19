@@ -1,0 +1,738 @@
+---
+title: 'Learning novel skills from iconic gestures: A developmental and evolutionary
+  perspective'
+subtitle: 'Supplementary material and analysis'
+date: "19 8 2018"
+output:
+  html_document:
+    code_folding: hide
+    theme: paper
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+
+
+# Overview
+
+Please note that the some values in this document might be different compared to the ones reported in the corresponding manuscript. This is a consequence of the way the models are fit. Differences are minor and never affect interpretation of the results.
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+library(brms)
+library(ggthemes)
+library(tidyverse)
+library(knitr)
+
+```
+
+## Datafile
+
+Variables:
+
+* subject: unique subject id.
+* group: 2-, 3-year-olds or ape species.
+* condition: arbitrary or iconic.
+* apparatus: apart (app1 in manuscript) and boxing (app2 in manuscript)
+* solve: successful box opening.
+* sum_part_act: sum of partial actions (not applicable for 3-year-olds).
+
+Head of data file:
+
+```{r load data}
+
+data <- read_csv("../data/ticon_data.csv")
+
+head(data)%>%
+  kable()
+```
+
+## Table for box opening by group and condition.
+```{r descriptives }
+data %>%
+  mutate(group = as.character(group),
+         group = ifelse (group == "24mo" | group == "36mo", group, "ape"))%>%
+  group_by(group,condition)%>%
+  summarise(n = n(),
+            sum_solve = sum(solve))%>%
+  kable()
+```
+
+## Overview plot (Figure 2 in manuscript)
+```{r plot overview}
+
+plot <- data %>%
+  mutate(group = as.character(group),
+         group = ifelse (group == "24mo" | group == "36mo", group, "Ape"),
+         solve = factor(solve))
+  
+
+ggplot(plot,aes(condition))+
+  geom_bar(aes(fill=solve),width = 0.4)+
+  facet_grid( ~ group)+
+  labs(x="",y="Nr. of Participants")+
+  xlab("Condition")+
+  scale_fill_manual(name="Open",
+                    labels=c("No", "Yes"), values=c("lightgrey","#21912e"))+
+  theme_few()+
+  theme(axis.text.x=element_text(angle = 45, vjust = 1, hjust = 1))+
+  scale_y_continuous(breaks = seq(0, 18, by = 2))
+```
+
+# Study 1: 2- and 3-year-old children
+
+## Models for box opening including both age groups
+
+* m1child (model 1): `` solve ~ group * condition + apparatus``
+* m2child (model 2): `` solve ~ group + condition + apparatus``
+* m3child (model 3): `` solve ~ group + apparatus``
+
+```{r models study 1 children, results='hide'}
+
+## subsetting the data
+child_data <- data %>%
+  filter(group == "24mo" | group == "36mo")
+
+# model including interaction
+
+m1child = brm(solve ~ 
+          group*condition + apparatus,
+        data= child_data,
+        family = bernoulli(),
+        control = list(adapt_delta = 0.90),
+        sample_prior = F,
+        save_all_pars = T,
+        iter = 10000)
+
+# model without interaction
+
+m2child = brm(solve ~ 
+          group + condition + apparatus,
+        data= child_data,
+        family = bernoulli(),
+        control = list(adapt_delta = 0.90),
+        sample_prior = F,
+        save_all_pars = T,
+        iter = 10000)
+
+# model without condition 
+
+m3child = brm(solve ~ 
+          group + apparatus,
+        data= child_data,
+        family = bernoulli(),
+        control = list(adapt_delta = 0.90),
+        sample_prior = F,
+        save_all_pars = T,
+        iter = 10000)
+
+```
+
+### WAIC
+
+```{r model comparison child waic}
+
+child_waic <- brms::WAIC(m1child, m2child,m3child, compare = F)
+
+child_weights <- model_weights(m1child, m2child,m3child, weights = "waic")
+
+data_frame(
+  model = c("model 1","model 2","model 3"),
+  WAIC = c(child_waic$m1child$estimates[3,1],child_waic$m2child$estimates[3,1],child_waic$m3child$estimates[3,1]),
+  SE = c(child_waic$m1child$estimates[3,2],child_waic$m2child$estimates[3,2],child_waic$m3child$estimates[3,2]),
+  weight = c(child_weights[1],child_weights[2],child_weights[3]))%>%
+  kable(digits = 2)
+
+
+```
+
+### Bayes Factors
+
+```{r bayes factor children model 1 vs model 2, results='hide'}
+
+bf_child_12 <- bayes_factor(m1child, m2child, log = FALSE, maxiter = 5000)
+bf_child_13 <- bayes_factor(m1child, m3child, log = FALSE, maxiter = 5000)
+bf_child_23 <- bayes_factor(m2child, m3child, log = FALSE, maxiter = 5000)
+
+```
+
+```{r}
+data_frame(
+  comparison = c("model 1 vs. 2","model 1 vs. 3","model 2 vs. 4"),
+  BF_10 = c(bf_child_12$bf,bf_child_13$bf,bf_child_23$bf))%>%
+  kable(digits = 2)
+```
+
+
+### Summary for model including interaction (model 1)
+```{r}
+fixef(m1child)%>%
+  kable(digits = 2)
+```
+
+#### Density plots
+
+```{r plot for child model 1}
+
+bayesplot::mcmc_areas(as.array(m1child), pars = c("b_Intercept", "b_group36mo", "b_conditioniconic", "b_group36mo:conditioniconic", "b_apparatusboxing"), prob = 0.95)+
+  geom_vline(xintercept = 0, lty = 2, col = "black")+
+  theme_few()
+
+```
+
+### Summary for model with only main effects (model 2)
+```{r}
+fixef(m2child)%>%
+  kable(digits = 2)
+```
+
+#### Density plots
+
+```{r plot for child model 2}
+
+bayesplot::mcmc_areas(as.array(m2child), pars = c("b_Intercept", "b_group36mo", "b_conditioniconic", "b_apparatusboxing"), prob = 0.95)+
+  geom_vline(xintercept = 0, lty = 2, col = "black")+
+  theme_few()
+
+```
+
+### Figure S1: Comparing posterior predictions based on model 1 and 2
+
+The plot below is based on samples drawn from the posterior distributions for model 1 (including interaction) and model 2 (only main effects).
+
+Black triangles are expected proportions based on model 1, grey stars are based on model 2. Error bars are 95% intervals of extracted samples. Colored dots are condition means based on the data.
+```{r plot posterior predictions}
+library(rethinking)
+
+post_m1 <- posterior_samples(m1child)%>%
+  mutate(b3i = logistic(b_Intercept + b_apparatusboxing/2 +b_group36mo + b_conditioniconic + `b_group36mo:conditioniconic`),
+         b3a = logistic(b_Intercept + b_apparatusboxing/2+ b_group36mo),
+         b2i = logistic(b_Intercept + b_apparatusboxing/2+ b_conditioniconic),
+         b2a = logistic(b_Intercept+ b_apparatusboxing/2))%>%
+  select(b3i,b3a,b2i,b2a)%>%
+  gather(pred,prop)%>%
+  group_by(pred)%>%
+  summarise(mean = quantile(prop,c(0.025,0.5,0.975)[2]),
+            lci = quantile(prop,c(0.025,0.5,0.975)[1]),
+            uci = quantile(prop,c(0.025,0.5,0.975)[3]))%>%
+  ungroup()%>%
+  mutate(group = c("24mo","24mo","36mo","36mo"),
+         condition = c(0,1,0,1))%>%
+  select(-pred)
+
+
+post_m2 <- posterior_samples(m2child)%>%
+  mutate(b3i = logistic(b_Intercept + b_apparatusboxing/2+b_group36mo + b_conditioniconic),
+         b3a = logistic(b_Intercept + b_apparatusboxing/2+ b_group36mo),
+         b2i = logistic(b_Intercept + b_apparatusboxing/2+ b_conditioniconic),
+         b2a = logistic(b_Intercept+ b_apparatusboxing/2))%>%
+  select(b3i,b3a,b2i,b2a)%>%
+  gather(pred,prop)%>%
+  group_by(pred)%>%
+  summarise(mean = quantile(prop,c(0.025,0.5,0.975)[2]),
+            lci = quantile(prop,c(0.025,0.5,0.975)[1]),
+            uci = quantile(prop,c(0.025,0.5,0.975)[3]))%>%
+  ungroup()%>%
+  mutate(group = c("24mo","24mo","36mo","36mo"),
+         condition = c(0,1,0,1))%>%
+  select(-pred)
+
+
+post_plot <- data %>%
+  filter(group == "24mo" | group == "36mo")%>%
+  group_by(group, condition)%>%
+  summarise(mean = mean(solve))
+
+
+ggplot()+
+  geom_point(data = post_plot, aes(x = as.numeric(factor(condition)), y = mean, col=condition), size = 5)+
+  geom_pointrange(data = post_m1, aes(x = as.numeric(condition)+0.8, y = mean, ymin = lci, ymax = uci), col = "black", shape = 2)+
+  geom_pointrange(data = post_m2, aes(x = as.numeric(condition)+1.2, y = mean, ymin = lci, ymax = uci),col = "grey", shape = 8)+
+  facet_grid( ~ group)+
+  theme_few()+
+  ylim(0,1)+
+  xlim(0.5,2.5)+
+  labs(x ="", y="Proportion Solved")+
+  scale_color_solarized(name="Condition")+
+  theme_few()+
+  theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
+```
+
+
+## Models for box opening by age group 
+
+
+```{r models for condition by age group, results='hide' }
+# subsetting data
+data_24 <- data %>%
+  filter(group == "24mo")
+
+# subsetting data
+data_36 <- data %>%
+  filter(group == "36mo")
+
+# model with condition 24 mo
+m1_24 = brm(solve ~ 
+          condition + apparatus,
+        data= data_24,
+        family = bernoulli(),
+        control = list(adapt_delta = 0.90),
+        sample_prior = F,
+        save_all_pars = T,
+        iter = 10000)
+
+# model without condition 24 mo
+m2_24 = brm(solve ~ 
+          apparatus,
+        data= data_24,
+        family = bernoulli(),
+        control = list(adapt_delta = 0.90),
+        sample_prior = F,
+        save_all_pars = T,
+        iter = 10000)
+
+# model with condition 36 mo
+m1_36 = brm(solve ~ 
+          condition + apparatus,
+        data= data_36,
+        family = bernoulli(),
+        control = list(adapt_delta = 0.90),
+        sample_prior = F,
+        save_all_pars = T,
+        iter = 10000)
+
+# model without condition 36 mo
+m2_36 = brm(solve ~ 
+          apparatus,
+        data= data_36,
+        family = bernoulli(),
+        control = list(adapt_delta = 0.90),
+        sample_prior = F,
+        save_all_pars = T,
+        iter = 10000)
+
+```
+
+### 2-year-olds
+
+#### WAIC
+
+```{r condition model 24mo waic}
+waic_24mo <- brms::WAIC(m1_24,m2_24, compare = F)
+
+weights_24mo <- model_weights(m1_24, m2_24, weights = "waic")
+
+data_frame(
+  model = c("model w/ condition","model w/o conditon"),
+  WAIC = c(
+    waic_24mo$m1_24$estimates[3,1],
+    waic_24mo$m2_24$estimates[3,1]),
+  SE = c(waic_24mo$m1_24$estimates[3,2],
+         waic_24mo$m2_24$estimates[3,2]),
+  weight = c(weights_24mo[1],
+             weights_24mo[2]))%>%
+  kable(digits = 2)
+
+
+
+
+```
+
+#### Bayes Factor
+
+```{r bayes factor for conditon for model for 24mo, results='hide'}
+bf_24mo <- bayes_factor(m1_24, m2_24, log = FALSE, maxiter = 5000)
+```
+
+```{r}
+data_frame(
+  comparison = c("model w condition vs. w/o condition"),
+  BF_10 = c(bf_24mo$bf))%>%
+  kable(digits = 2)
+```
+
+
+#### Summary for model including condition
+
+```{r summary for 24mo condition model}
+fixef(m1_24)%>%
+  kable(digits = 2)
+```
+
+#### Density plots
+
+```{r plot for 24mo condition model}
+
+bayesplot::mcmc_areas(as.array(m1_24), pars = c("b_Intercept","b_conditioniconic", "b_apparatusboxing"), prob = 0.95)+
+  geom_vline(xintercept = 0, lty = 2, col = "black")+
+  theme_few()
+
+```
+
+### 3-year-olds
+
+#### WAIC
+
+```{r condition model 36mo waic}
+waic_36mo <- brms::WAIC(m1_36,m2_36, compare = F)
+
+weights_36mo <- model_weights(m1_36, m2_36, weights = "waic")
+
+data_frame(
+  model = c("model w/ condition","model w/o conditon"),
+  WAIC = c(
+    waic_36mo$m1_36$estimates[3,1],
+    waic_36mo$m2_36$estimates[3,1]),
+  SE = c(waic_36mo$m1_36$estimates[3,2],
+         waic_36mo$m2_36$estimates[3,2]),
+  weight = c(weights_36mo[1],
+             weights_36mo[2]))%>%
+  kable(digits = 2)
+
+```
+
+#### Bayes Factor
+
+```{r bayes factor for conditon for model for 36mo, results='hide'}
+bf_36mo <- bayes_factor(m1_36, m2_36, log = FALSE, maxiter = 5000)
+
+```
+
+```{r}
+data_frame(
+  comparison = c("model w condition vs. w/o condition"),
+  BF_10 = c(bf_36mo$bf))%>%
+  kable(digits = 2)
+```
+
+
+#### Summary for model including condition
+
+```{r summary for condition model 36mo}
+fixef(m1_36)%>%
+  kable(digits = 2)
+```
+
+#### Density plots
+
+```{r plot for condition model 36mo}
+
+bayesplot::mcmc_areas(as.array(m1_36), pars = c("b_Intercept","b_conditioniconic", "b_apparatusboxing"), prob = 0.95)+
+  geom_vline(xintercept = 0, lty = 2, col = "black")+
+  theme_few()
+
+```
+
+## Models for partial actions for 2-year-olds
+
+### Figure S2: Plot for partial actions
+
+Transparent dots show individual data points. Solid dots show means with 95% CI.
+
+```{r plot partial actions 2-year-olds}
+
+plot2 <- data %>%
+  filter(group == "24mo")
+
+library(gmodels)
+
+plot3 <- data %>%
+  filter(group == "24mo")%>%
+  group_by(condition)%>%
+  summarize(mean = mean(sum_part_act),
+         lci = ci(sum_part_act)[2],
+         uci = ci(sum_part_act)[3])
+  
+ggplot()+
+  geom_jitter(data = plot2, aes(x = condition, y = sum_part_act, col = condition), height = 0, width = 0.2,alpha = 0.5)+
+  geom_pointrange(data = plot3, aes(x = condition, y = mean, ymin = lci, ymax = uci, col = condition), size = 1)+
+  labs(x="",y="Partial Actions")+
+  scale_color_solarized(name = "Condition")+
+  theme_few()+
+  theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
+
+
+```
+
+
+```{r model partial actions 24mo, results='hide'}
+
+# model including condition
+
+m1_24mopart = brm(sum_part_act ~ 
+          condition + apparatus,
+        data= data_24,
+        family = binomial(),
+        control = list(adapt_delta = 0.90),
+        sample_prior = F,
+        save_all_pars = T,
+        iter = 10000)
+
+# model excluding condition
+
+m2_24mopart = brm(sum_part_act ~ 
+          apparatus,
+        data= data_24,
+        family = binomial(),
+        control = list(adapt_delta = 0.90),
+        sample_prior = F,
+        save_all_pars = T,
+        iter = 10000)
+
+
+
+```
+
+### WAIC
+
+```{r waic 24mo partial actions}
+# model selection based on WAIC
+
+m24_waic_part <- brms::WAIC(m1_24mopart, m2_24mopart, compare = F)
+
+weights_24mo_part <- model_weights(m1_24mopart, m2_24mopart, weights = "waic")
+
+data_frame(
+  model = c("model w/ condition","model w/o conditon"),
+  WAIC = c(
+    m24_waic_part$m1_24mopart$estimates[3,1],
+    m24_waic_part$m2_24mopart$estimates[3,1]),
+  SE = c(m24_waic_part$m1_24mopart$estimates[3,2],
+         m24_waic_part$m2_24mopart$estimates[3,2]),
+  weight = c(weights_24mo_part[1],
+             weights_24mo_part[2]))%>%
+  kable(digits = 2)
+```
+
+### Bayes Factor
+
+```{r bayes factor for condition 24mo partial actions, results='hide'}
+bf_24mo_part <- bayes_factor(m1_24mopart,m2_24mopart, log = FALSE, maxiter = 5000)
+```
+
+```{r}
+data_frame(
+  comparison = c("model w condition vs. w/o condition"),
+  BF_10 = c(bf_24mo_part$bf))%>%
+  kable(digits = 2)
+```
+
+
+### Summary for model including condition
+
+```{r summary for 24mo model partial actions}
+fixef(m1_24mopart)%>%
+  kable(digits = 2)
+```
+
+#### Density plots
+
+```{r plot for 24mo model partial actions}
+
+bayesplot::mcmc_areas(as.array(m1_24mopart), pars = c("b_Intercept","b_conditioniconic", "b_apparatusboxing"), prob = 0.95)+
+  geom_vline(xintercept = 0, lty = 2, col = "black")+
+  theme_few()
+
+```
+
+# Study 2: Apes 
+
+## Models for box opening
+
+```{r models study 2 apes, results='hide'}
+
+## subsetting the data
+ape_data <- data %>%
+  filter(group != "24mo",
+         group != "36mo")
+
+## model including condition
+
+m1ape = brm(solve ~ 
+          condition + apparatus,
+        data= ape_data,
+        family = bernoulli(),
+        control = list(adapt_delta = 0.90),
+        sample_prior = F,
+        save_all_pars = T,
+        iter = 10000)
+
+# model without condition 
+
+m2ape = brm(solve ~ 
+          apparatus,
+        data= ape_data,
+        family = bernoulli(),
+        control = list(adapt_delta = 0.90),
+        sample_prior = F,
+        save_all_pars = T,
+        iter = 10000)
+```
+
+### WAIC
+
+```{r model comparison ape solve}
+
+ape_waic <- brms::WAIC(m1ape,m2ape, compare = F)
+
+ape_weights <- model_weights(m1ape, m2ape, weights = "waic")
+
+data_frame(
+  model = c("model w/ condition","model w/o conditon"),
+  WAIC = c(
+    ape_waic$m1ape$estimates[3,1],
+    ape_waic$m2ape$estimates[3,1]),
+  SE = c(ape_waic$m1ape$estimates[3,2],
+         ape_waic$m2ape$estimates[3,2]),
+  weight = c(ape_weights[1],
+             ape_weights[2]))%>%
+  kable(digits = 2)
+```
+
+### Bayes Factor
+
+```{r bayes factor for condition ape model, results='hide'}
+
+bf_ape <- bayes_factor(m1ape,m2ape, log = FALSE, maxiter = 5000)
+```
+
+```{r}
+data_frame(
+  comparison = c("model w condition vs. w/o condition"),
+  BF_10 = c(bf_ape$bf))%>%
+  kable(digits = 2)
+```
+
+
+### Summary for model including condition
+
+```{r summary for ape model}
+
+fixef(m1ape)%>%
+  kable(digits = 2)
+```
+
+#### Density plots
+
+```{r plot for ape model}
+
+bayesplot::mcmc_areas(as.array(m1ape), pars = c("b_Intercept","b_conditioniconic", "b_apparatusboxing"), prob = 0.95)+
+  geom_vline(xintercept = 0, lty = 2, col = "black")+
+  theme_few()
+
+```
+
+## Model for partial actions
+
+### Figure S3:Plot for partial actions
+
+Transparent dots show individual data points. Solid dots show means with 95% CI.
+
+```{r plot partial actions apes}
+
+plot4 <- data %>%
+  filter(group != "24mo",
+         group != "36mo")
+
+library(gmodels)
+
+plot5 <- data %>%
+  filter(group != "24mo",
+         group != "36mo")%>%
+  group_by(condition)%>%
+  summarize(mean = mean(sum_part_act),
+         lci = ci(sum_part_act)[2],
+         uci = ci(sum_part_act)[3])
+  
+ggplot()+
+  geom_jitter(data = plot4, aes(x = condition, y = sum_part_act, col = condition), height = 0, width = 0.2,alpha = 0.5)+
+  geom_pointrange(data = plot5, aes(x = condition, y = mean, ymin = lci, ymax = uci, col = condition), size = 1)+
+  labs(x="",y="Partial Actions")+
+  scale_color_solarized(name = "Condition")+
+  theme_few()+
+  theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
+
+```
+
+
+```{r model partial actions apes, results='hide'}
+
+## model including condition 
+
+m1apepart = brm(sum_part_act ~ 
+          condition + apparatus,
+        data= ape_data,
+        family = binomial(),
+        control = list(adapt_delta = 0.90),
+        sample_prior = F,
+        save_all_pars = T,
+        iter = 10000)
+
+
+# model without condition
+
+m2apepart = brm(sum_part_act ~ 
+          apparatus,
+        data= ape_data,
+        family = binomial(),
+        control = list(adapt_delta = 0.90),
+        sample_prior = F,
+        save_all_pars = T,
+        iter = 10000)
+
+```
+
+### WAIC
+
+```{r waic ape partial actions}
+ape_waic_part <- brms::WAIC(m1apepart,m2apepart, compare = F)
+
+ape_weights_part <- model_weights(m1apepart, m1apepart, weights = "waic")
+
+data_frame(
+  model = c("model w/ condition","model w/o conditon"),
+  WAIC = c(
+    ape_waic_part$m1apepart$estimates[3,1],
+    ape_waic_part$m2apepart$estimates[3,1]),
+  SE = c(ape_waic_part$m1apepart$estimates[3,2],
+         ape_waic_part$m2apepart$estimates[3,2]),
+  weight = c(ape_weights_part[1],
+             ape_weights_part[2]))%>%
+  kable(digits = 2)
+```
+
+### Bayes Factor
+
+```{r bayes factor ape partial actions, results='hide'}
+bf_ape_part <- bayes_factor(m1apepart,m2apepart, log = FALSE, maxiter = 5000)
+```
+
+```{r}
+data_frame(
+  comparison = c("model w condition vs. w/o condition"),
+  BF_10 = c(bf_ape_part$bf))%>%
+  kable(digits = 2)
+```
+
+### Summary for model including condition
+
+```{r summary for ape model partial actions}
+
+fixef(m1apepart)%>%
+  kable(digits = 2)
+
+```
+
+#### Density plots
+
+```{r plot for ape model partial actions}
+
+bayesplot::mcmc_areas(as.array(m1apepart), pars = c("b_Intercept","b_conditioniconic", "b_apparatusboxing"), prob = 0.95)+
+  geom_vline(xintercept = 0, lty = 2, col = "black")+
+  theme_few()
+
+```
+
+
