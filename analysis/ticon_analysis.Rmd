@@ -160,7 +160,7 @@ bf_child_23 <- bayes_factor(m2child, m3child, log = FALSE, maxiter = 5000)
 
 ```{r}
 data_frame(
-  comparison = c("model 1 vs. 2","model 1 vs. 3","model 2 vs. 4"),
+  comparison = c("model 1 vs. 2","model 1 vs. 3","model 2 vs. 3"),
   BF_10 = c(bf_child_12$bf,bf_child_13$bf,bf_child_23$bf))%>%
   kable(digits = 2)
 ```
@@ -464,7 +464,7 @@ ggplot()+
 m1_24mopart = brm(sum_part_act ~ 
           condition + apparatus,
         data= data_24,
-        family = binomial(),
+        family = poisson(),
         control = list(adapt_delta = 0.90),
         sample_prior = F,
         save_all_pars = T,
@@ -475,7 +475,7 @@ m1_24mopart = brm(sum_part_act ~
 m2_24mopart = brm(sum_part_act ~ 
           apparatus,
         data= data_24,
-        family = binomial(),
+        family = poisson(),
         control = list(adapt_delta = 0.90),
         sample_prior = F,
         save_all_pars = T,
@@ -664,7 +664,7 @@ ggplot()+
 m1apepart = brm(sum_part_act ~ 
           condition + apparatus,
         data= ape_data,
-        family = binomial(),
+        family = poisson(),
         control = list(adapt_delta = 0.90),
         sample_prior = F,
         save_all_pars = T,
@@ -676,7 +676,7 @@ m1apepart = brm(sum_part_act ~
 m2apepart = brm(sum_part_act ~ 
           apparatus,
         data= ape_data,
-        family = binomial(),
+        family = poisson(),
         control = list(adapt_delta = 0.90),
         sample_prior = F,
         save_all_pars = T,
