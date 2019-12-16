@@ -2,21 +2,18 @@
 title: 'Learning novel skills from iconic gestures: A developmental and evolutionary
   perspective'
 subtitle: 'Supplementary material and analysis'
-date: "19 8 2018"
 output:
+  pdf_document:
+    toc: yes
   html_document:
     code_folding: hide
     theme: paper
     toc: yes
-  pdf_document:
-    toc: yes
 ---
-
-
 
 # Overview
 
-Please note that the some values in this document might be different compared to the ones reported in the corresponding manuscript. This is a consequence of the way the models are fit. Differences are minor and never affect interpretation of the results.
+Please note that the some values in this document might be different compared to the ones reported in the corresponding manuscript when you choose to run the models yourself. This is a consequence of the way the models are fit. Differences are minor and never affect interpretation of the results. The results reported in the paper can be obtained by lodaing the corresponding `.rds` files. 
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
@@ -25,6 +22,8 @@ library(brms)
 library(ggthemes)
 library(tidyverse)
 library(knitr)
+library(langcog)
+library(readODS)
 
 ```
 
@@ -33,52 +32,59 @@ library(knitr)
 Variables:
 
 * subject: unique subject id.
-* group: 2-, 3-year-olds or ape species.
+* group: 2-, 3-year-olds, 3-year-olds replication or ape species.
 * condition: arbitrary or iconic.
 * apparatus: apart (app1 in manuscript) and boxing (app2 in manuscript)
 * solve: successful box opening.
-* sum_part_act: sum of partial actions (not applicable for 3-year-olds).
+* sum_part_act: sum of partial actions (not applicable for 3-year-olds and 3-year-olds replication).
 
 Head of data file:
 
 ```{r load data}
-
 data <- read_csv("../data/ticon_data.csv")
 
 head(data)%>%
   kable()
 ```
 
-## Table for box opening by group and condition.
+## Proportion of box opening by group and condition.
 ```{r descriptives }
 data %>%
-  mutate(group = as.character(group),
-         group = ifelse (group == "24mo" | group == "36mo", group, "ape"))%>%
+  mutate(group = ifelse (group == "24mo" | group == "36mo" | group == "36mo_replication", group, "ape"))%>%
   group_by(group,condition)%>%
-  summarise(n = n(),
-            sum_solve = sum(solve))%>%
-  kable()
+  summarise(n = length(unique(subject)),
+            prop_solve = mean(solve))%>%
+  kable(digits = 2)
 ```
 
 ## Overview plot (Figure 2 in manuscript)
-```{r plot overview}
+```{r plot overview, echo = F, out.width="100%", fig.height=4, fig.width=8}
 
 plot <- data %>%
   mutate(group = as.character(group),
-         group = ifelse (group == "24mo" | group == "36mo", group, "Ape"),
-         solve = factor(solve))
-  
+         group = ifelse (group == "24mo" | group == "36mo" | group == "36mo_replication", group, "Apes"),
+         group = ifelse (group == "36mo_replication", "3-year-olds replication", group),
+         group = ifelse (group == "36mo", "3-year-olds", group),
+         group = ifelse (group == "24mo", "2-year-olds", group))%>%
+  group_by(group, condition,subject)%>%
+  summarise(solve = mean(solve))
 
-ggplot(plot,aes(condition))+
-  geom_bar(aes(fill=solve),width = 0.4)+
-  facet_grid( ~ group)+
-  labs(x="",y="Nr. of Participants")+
-  xlab("Condition")+
-  scale_fill_manual(name="Open",
-                    labels=c("No", "Yes"), values=c("lightgrey","#21912e"))+
+plot2 <- plot %>%
+  group_by(group, condition)%>%
+  multi_boot_standard(col = "solve")
+  
+ggplot(plot, aes(x = condition, y = solve, col = condition))+
+  geom_jitter(height = 0.01, width = .4, alpha = .5)+
+  facet_grid(~group)+
+  geom_pointrange(data = plot2, aes(x = condition, y = mean, ymin = ci_lower , ymax = ci_upper), pch = 5, size = .75, stroke = 1.25)+
   theme_few()+
-  theme(axis.text.x=element_text(angle = 45, vjust = 1, hjust = 1))+
-  scale_y_continuous(breaks = seq(0, 18, by = 2))
+  labs(x="",y="Proportion participants opening box  ")+
+  scale_color_colorblind(name = "Condition")+
+  theme(axis.text.x=element_blank(),axis.ticks.x=element_blank(), legend.position = "right", legend.direction = "vertical")
+```
+
+```{r}
+ggsave("../figures/figure2.png", dpi = 500, scale = 1.3, width = 7, height = 3)
 ```
 
 # Study 1: 2- and 3-year-old children
@@ -97,36 +103,51 @@ child_data <- data %>%
 
 # model including interaction
 
-m1child = brm(solve ~ 
-          group*condition + apparatus,
-        data= child_data,
-        family = bernoulli(),
-        control = list(adapt_delta = 0.90),
-        sample_prior = F,
-        save_all_pars = T,
-        iter = 10000)
+# m1child = brm(solve ~ 
+#           group*condition + apparatus,
+#         data= child_data,
+#         family = bernoulli(),
+#         control = list(adapt_delta = 0.90),
+#         chains = 4, 
+#         cores = 4,
+#         sample_prior = F,
+#         save_all_pars = T,
+#         iter = 10000)%>%
+#   saveRDS(.,"../saves/m1child.rds")
+
+m1child <- readRDS("../saves/m1child.rds")
 
 # model without interaction
 
-m2child = brm(solve ~ 
-          group + condition + apparatus,
-        data= child_data,
-        family = bernoulli(),
-        control = list(adapt_delta = 0.90),
-        sample_prior = F,
-        save_all_pars = T,
-        iter = 10000)
+# m2child = brm(solve ~ 
+#           group + condition + apparatus,
+#         data= child_data,
+#         family = bernoulli(),
+#         control = list(adapt_delta = 0.90),
+#         sample_prior = F,
+#         chains = 4, 
+#         cores = 4,
+#         save_all_pars = T,
+#         iter = 10000)%>%
+#   saveRDS(.,"../saves/m2child.rds")
+
+m2child <- readRDS("../saves/m2child.rds")
 
 # model without condition 
 
-m3child = brm(solve ~ 
-          group + apparatus,
-        data= child_data,
-        family = bernoulli(),
-        control = list(adapt_delta = 0.90),
-        sample_prior = F,
-        save_all_pars = T,
-        iter = 10000)
+# m3child = brm(solve ~ 
+#           group + apparatus,
+#         data= child_data,
+#         family = bernoulli(),
+#         control = list(adapt_delta = 0.90),
+#         sample_prior = F,
+#         chains = 4, 
+#         cores = 4,
+#         save_all_pars = T,
+#         iter = 10000)%>%
+#   saveRDS(.,"../saves/m3child.rds")
+
+m3child <- readRDS("../saves/m3child.rds")
 
 ```
 
@@ -140,32 +161,18 @@ child_weights <- model_weights(m1child, m2child,m3child, weights = "waic")
 
 data_frame(
   model = c("model 1","model 2","model 3"),
-  WAIC = c(child_waic$m1child$estimates[3,1],child_waic$m2child$estimates[3,1],child_waic$m3child$estimates[3,1]),
-  SE = c(child_waic$m1child$estimates[3,2],child_waic$m2child$estimates[3,2],child_waic$m3child$estimates[3,2]),
-  weight = c(child_weights[1],child_weights[2],child_weights[3]))%>%
+  WAIC = c(child_waic$loo$m1child$estimates[3,1],
+           child_waic$loo$m2child$estimates[3,1],
+           child_waic$loo$m3child$estimates[3,1]),
+  SE = c(child_waic$loo$m1child$estimates[3,2],
+         child_waic$loo$m2child$estimates[3,2],
+         child_waic$loo$m3child$estimates[3,2]),
+  weight = c(child_weights[1],child_weights[2],
+             child_weights[3]))%>%
   kable(digits = 2)
 
 
 ```
-
-### Bayes Factors
-
-```{r bayes factor children model 1 vs model 2, results='hide'}
-
-bf_child_12 <- bayes_factor(m1child, m2child, log = FALSE, maxiter = 5000)
-bf_child_13 <- bayes_factor(m1child, m3child, log = FALSE, maxiter = 5000)
-bf_child_23 <- bayes_factor(m2child, m3child, log = FALSE, maxiter = 5000)
-
-```
-
-```{r}
-data_frame(
-  comparison = c("model 1 vs. 2","model 1 vs. 3","model 2 vs. 3"),
-  BF_10 = c(bf_child_12$bf,bf_child_13$bf,bf_child_23$bf))%>%
-  kable(digits = 2)
-```
-
-
 ### Summary for model including interaction (model 1)
 ```{r}
 fixef(m1child)%>%
@@ -174,9 +181,11 @@ fixef(m1child)%>%
 
 #### Density plots
 
-```{r plot for child model 1}
+```{r plot for child model 1, fig.align="center", out.width="60%"}
 
-bayesplot::mcmc_areas(as.array(m1child), pars = c("b_Intercept", "b_group36mo", "b_conditioniconic", "b_group36mo:conditioniconic", "b_apparatusboxing"), prob = 0.95)+
+bayesplot::mcmc_areas(as.array(m1child), 
+                      pars = c("b_Intercept", "b_group36mo", "b_conditioniconic", "b_group36mo:conditioniconic", "b_apparatusboxing"), 
+                      prob = 0.95)+
   geom_vline(xintercept = 0, lty = 2, col = "black")+
   theme_few()
 
@@ -190,9 +199,11 @@ fixef(m2child)%>%
 
 #### Density plots
 
-```{r plot for child model 2}
+```{r plot for child model 2, fig.align="center", out.width="60%"}
 
-bayesplot::mcmc_areas(as.array(m2child), pars = c("b_Intercept", "b_group36mo", "b_conditioniconic", "b_apparatusboxing"), prob = 0.95)+
+bayesplot::mcmc_areas(as.array(m2child), 
+                      pars = c("b_Intercept", "b_group36mo", "b_conditioniconic", "b_apparatusboxing"), 
+                      prob = 0.95)+
   geom_vline(xintercept = 0, lty = 2, col = "black")+
   theme_few()
 
@@ -202,15 +213,14 @@ bayesplot::mcmc_areas(as.array(m2child), pars = c("b_Intercept", "b_group36mo", 
 
 The plot below is based on samples drawn from the posterior distributions for model 1 (including interaction) and model 2 (only main effects).
 
-Black triangles are expected proportions based on model 1, grey stars are based on model 2. Error bars are 95% intervals of extracted samples. Colored dots are condition means based on the data.
-```{r plot posterior predictions}
-library(rethinking)
+Black triangles are expected proportions based on model 1, grey stars are based on model 2. Error bars are 95% intervals of extracted samples. Colored diamonds are condition means based on the data.
+```{r plot posterior predictions, echo = F, out.width="100%", fig.align="center"}
 
 post_m1 <- posterior_samples(m1child)%>%
-  mutate(b3i = logistic(b_Intercept + b_apparatusboxing/2 +b_group36mo + b_conditioniconic + `b_group36mo:conditioniconic`),
-         b3a = logistic(b_Intercept + b_apparatusboxing/2+ b_group36mo),
-         b2i = logistic(b_Intercept + b_apparatusboxing/2+ b_conditioniconic),
-         b2a = logistic(b_Intercept+ b_apparatusboxing/2))%>%
+  mutate(b3i = plogis(b_Intercept + b_apparatusboxing/2 +b_group36mo + b_conditioniconic + `b_group36mo:conditioniconic`),
+         b3a = plogis(b_Intercept + b_apparatusboxing/2+ b_group36mo),
+         b2i = plogis(b_Intercept + b_apparatusboxing/2+ b_conditioniconic),
+         b2a = plogis(b_Intercept+ b_apparatusboxing/2))%>%
   select(b3i,b3a,b2i,b2a)%>%
   gather(pred,prop)%>%
   group_by(pred)%>%
@@ -218,16 +228,16 @@ post_m1 <- posterior_samples(m1child)%>%
             lci = quantile(prop,c(0.025,0.5,0.975)[1]),
             uci = quantile(prop,c(0.025,0.5,0.975)[3]))%>%
   ungroup()%>%
-  mutate(group = c("24mo","24mo","36mo","36mo"),
+  mutate(group = c("2-year-olds","2-year-olds","3-year-olds","3-year-olds"),
          condition = c(0,1,0,1))%>%
   select(-pred)
 
 
 post_m2 <- posterior_samples(m2child)%>%
-  mutate(b3i = logistic(b_Intercept + b_apparatusboxing/2+b_group36mo + b_conditioniconic),
-         b3a = logistic(b_Intercept + b_apparatusboxing/2+ b_group36mo),
-         b2i = logistic(b_Intercept + b_apparatusboxing/2+ b_conditioniconic),
-         b2a = logistic(b_Intercept+ b_apparatusboxing/2))%>%
+  mutate(b3i = plogis(b_Intercept + b_apparatusboxing/2+b_group36mo + b_conditioniconic),
+         b3a = plogis(b_Intercept + b_apparatusboxing/2+ b_group36mo),
+         b2i = plogis(b_Intercept + b_apparatusboxing/2+ b_conditioniconic),
+         b2a = plogis(b_Intercept+ b_apparatusboxing/2))%>%
   select(b3i,b3a,b2i,b2a)%>%
   gather(pred,prop)%>%
   group_by(pred)%>%
@@ -235,27 +245,24 @@ post_m2 <- posterior_samples(m2child)%>%
             lci = quantile(prop,c(0.025,0.5,0.975)[1]),
             uci = quantile(prop,c(0.025,0.5,0.975)[3]))%>%
   ungroup()%>%
-  mutate(group = c("24mo","24mo","36mo","36mo"),
+  mutate(group = c("2-year-olds","2-year-olds","3-year-olds","3-year-olds"),
          condition = c(0,1,0,1))%>%
   select(-pred)
 
 
-post_plot <- data %>%
-  filter(group == "24mo" | group == "36mo")%>%
-  group_by(group, condition)%>%
-  summarise(mean = mean(solve))
+post_plot <- plot2 %>%
+  filter(group == "2-year-olds" | group == "3-year-olds")
 
 
 ggplot()+
-  geom_point(data = post_plot, aes(x = as.numeric(factor(condition)), y = mean, col=condition), size = 5)+
+  geom_pointrange(data = post_plot, aes(x = condition, y = mean, ymin = ci_lower , ymax = ci_upper, col = condition), pch = 5)+
   geom_pointrange(data = post_m1, aes(x = as.numeric(condition)+0.8, y = mean, ymin = lci, ymax = uci), col = "black", shape = 2)+
   geom_pointrange(data = post_m2, aes(x = as.numeric(condition)+1.2, y = mean, ymin = lci, ymax = uci),col = "grey", shape = 8)+
   facet_grid( ~ group)+
   theme_few()+
   ylim(0,1)+
-  xlim(0.5,2.5)+
   labs(x ="", y="Proportion Solved")+
-  scale_color_solarized(name="Condition")+
+  scale_color_ptol(name="Condition(Data)")+
   theme_few()+
   theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
 ```
@@ -274,44 +281,64 @@ data_36 <- data %>%
   filter(group == "36mo")
 
 # model with condition 24 mo
-m1_24 = brm(solve ~ 
-          condition + apparatus,
-        data= data_24,
-        family = bernoulli(),
-        control = list(adapt_delta = 0.90),
-        sample_prior = F,
-        save_all_pars = T,
-        iter = 10000)
+# m1_24 = brm(solve ~ 
+#           condition + apparatus,
+#         data= data_24,
+#         family = bernoulli(),
+#         control = list(adapt_delta = 0.90),
+#         sample_prior = F,
+#         save_all_pars = T,
+#         chains = 4, 
+#         cores = 4,
+#         iter = 10000)%>%
+#   saveRDS(.,"../saves/m1_24.rds")
+
+m1_24 <- readRDS("../saves/m1_24.rds")
 
 # model without condition 24 mo
-m2_24 = brm(solve ~ 
-          apparatus,
-        data= data_24,
-        family = bernoulli(),
-        control = list(adapt_delta = 0.90),
-        sample_prior = F,
-        save_all_pars = T,
-        iter = 10000)
+# m2_24 = brm(solve ~ 
+#           apparatus,
+#         data= data_24,
+#         family = bernoulli(),
+#         control = list(adapt_delta = 0.90),
+#         sample_prior = F,
+#         save_all_pars = T,
+#         chains = 4, 
+#         cores = 4,
+#         iter = 10000)%>%
+#   saveRDS(.,"../saves/m2_24.rds")
+
+m2_24 <- readRDS("../saves/m2_24.rds")
 
 # model with condition 36 mo
-m1_36 = brm(solve ~ 
-          condition + apparatus,
-        data= data_36,
-        family = bernoulli(),
-        control = list(adapt_delta = 0.90),
-        sample_prior = F,
-        save_all_pars = T,
-        iter = 10000)
+# m1_36 = brm(solve ~ 
+#           condition + apparatus,
+#         data= data_36,
+#         family = bernoulli(),
+#         control = list(adapt_delta = 0.90),
+#         sample_prior = F,
+#         save_all_pars = T,
+#         chains = 4, 
+#         cores = 4,
+#         iter = 10000)%>%
+#   saveRDS(.,"../saves/m1_36.rds")
+
+m1_36 <- readRDS("../saves/m1_36.rds")
 
 # model without condition 36 mo
-m2_36 = brm(solve ~ 
-          apparatus,
-        data= data_36,
-        family = bernoulli(),
-        control = list(adapt_delta = 0.90),
-        sample_prior = F,
-        save_all_pars = T,
-        iter = 10000)
+# m2_36 = brm(solve ~ 
+#           apparatus,
+#         data= data_36,
+#         family = bernoulli(),
+#         control = list(adapt_delta = 0.90),
+#         sample_prior = F,
+#         save_all_pars = T,
+#         chains = 4, 
+#         cores = 4,
+#         iter = 10000)%>%
+#   saveRDS(.,"../saves/m2_36.rds")
+
+m2_36 <- readRDS("../saves/m2_36.rds")
 
 ```
 
@@ -327,10 +354,10 @@ weights_24mo <- model_weights(m1_24, m2_24, weights = "waic")
 data_frame(
   model = c("model w/ condition","model w/o conditon"),
   WAIC = c(
-    waic_24mo$m1_24$estimates[3,1],
-    waic_24mo$m2_24$estimates[3,1]),
-  SE = c(waic_24mo$m1_24$estimates[3,2],
-         waic_24mo$m2_24$estimates[3,2]),
+    waic_24mo$loo$m1_24$estimates[3,1],
+    waic_24mo$loo$m2_24$estimates[3,1]),
+  SE = c(waic_24mo$loo$m1_24$estimates[3,2],
+         waic_24mo$loo$m2_24$estimates[3,2]),
   weight = c(weights_24mo[1],
              weights_24mo[2]))%>%
   kable(digits = 2)
@@ -340,20 +367,6 @@ data_frame(
 
 ```
 
-#### Bayes Factor
-
-```{r bayes factor for conditon for model for 24mo, results='hide'}
-bf_24mo <- bayes_factor(m1_24, m2_24, log = FALSE, maxiter = 5000)
-```
-
-```{r}
-data_frame(
-  comparison = c("model w condition vs. w/o condition"),
-  BF_10 = c(bf_24mo$bf))%>%
-  kable(digits = 2)
-```
-
-
 #### Summary for model including condition
 
 ```{r summary for 24mo condition model}
@@ -361,11 +374,13 @@ fixef(m1_24)%>%
   kable(digits = 2)
 ```
 
-#### Density plots
+##### Density plots
 
-```{r plot for 24mo condition model}
+```{r plot for 24mo condition model, fig.align="center", out.width="60%"}
 
-bayesplot::mcmc_areas(as.array(m1_24), pars = c("b_Intercept","b_conditioniconic", "b_apparatusboxing"), prob = 0.95)+
+bayesplot::mcmc_areas(as.array(m1_24), 
+                      pars = c("b_Intercept","b_conditioniconic", "b_apparatusboxing"), 
+                      prob = 0.95)+
   geom_vline(xintercept = 0, lty = 2, col = "black")+
   theme_few()
 
@@ -383,30 +398,15 @@ weights_36mo <- model_weights(m1_36, m2_36, weights = "waic")
 data_frame(
   model = c("model w/ condition","model w/o conditon"),
   WAIC = c(
-    waic_36mo$m1_36$estimates[3,1],
-    waic_36mo$m2_36$estimates[3,1]),
-  SE = c(waic_36mo$m1_36$estimates[3,2],
-         waic_36mo$m2_36$estimates[3,2]),
+    waic_36mo$loo$m1_36$estimates[3,1],
+    waic_36mo$loo$m2_36$estimates[3,1]),
+  SE = c(waic_36mo$loo$m1_36$estimates[3,2],
+         waic_36mo$loo$m2_36$estimates[3,2]),
   weight = c(weights_36mo[1],
              weights_36mo[2]))%>%
   kable(digits = 2)
 
 ```
-
-#### Bayes Factor
-
-```{r bayes factor for conditon for model for 36mo, results='hide'}
-bf_36mo <- bayes_factor(m1_36, m2_36, log = FALSE, maxiter = 5000)
-
-```
-
-```{r}
-data_frame(
-  comparison = c("model w condition vs. w/o condition"),
-  BF_10 = c(bf_36mo$bf))%>%
-  kable(digits = 2)
-```
-
 
 #### Summary for model including condition
 
@@ -415,15 +415,18 @@ fixef(m1_36)%>%
   kable(digits = 2)
 ```
 
-#### Density plots
+##### Density plots
 
-```{r plot for condition model 36mo}
+```{r plot for condition model 36mo, fig.align="center", out.width="60%"}
 
-bayesplot::mcmc_areas(as.array(m1_36), pars = c("b_Intercept","b_conditioniconic", "b_apparatusboxing"), prob = 0.95)+
+bayesplot::mcmc_areas(as.array(m1_36), 
+                      pars = c("b_Intercept","b_conditioniconic", "b_apparatusboxing"), 
+                      prob = 0.95)+
   geom_vline(xintercept = 0, lty = 2, col = "black")+
   theme_few()
 
 ```
+
 
 ## Models for partial actions for 2-year-olds
 
@@ -431,7 +434,7 @@ bayesplot::mcmc_areas(as.array(m1_36), pars = c("b_Intercept","b_conditioniconic
 
 Transparent dots show individual data points. Solid dots show means with 95% CI.
 
-```{r plot partial actions 2-year-olds}
+```{r plot partial actions 2-year-olds, , echo = F, out.width="60%", fig.height=3, fig.width=4, fig.align="center"}
 
 plot2 <- data %>%
   filter(group == "24mo")
@@ -447,9 +450,9 @@ plot3 <- data %>%
   
 ggplot()+
   geom_jitter(data = plot2, aes(x = condition, y = sum_part_act, col = condition), height = 0, width = 0.2,alpha = 0.5)+
-  geom_pointrange(data = plot3, aes(x = condition, y = mean, ymin = lci, ymax = uci, col = condition), size = 1)+
+  geom_pointrange(data = plot3, aes(x = condition, y = mean, ymin = lci, ymax = uci, col = condition), size = 1, pch = 5)+
   labs(x="",y="Partial Actions")+
-  scale_color_solarized(name = "Condition")+
+  scale_color_colorblind(name = "Condition")+
   theme_few()+
   theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
 
@@ -461,25 +464,35 @@ ggplot()+
 
 # model including condition
 
-m1_24mopart = brm(sum_part_act ~ 
-          condition + apparatus,
-        data= data_24,
-        family = poisson(),
-        control = list(adapt_delta = 0.90),
-        sample_prior = F,
-        save_all_pars = T,
-        iter = 10000)
+# m1_24mopart = brm(sum_part_act ~
+#           condition + apparatus,
+#         data= data_24,
+#         family = poisson(),
+#         control = list(adapt_delta = 0.90),
+#         sample_prior = F,
+#         save_all_pars = T,
+#         chains = 4,
+#         cores = 4,
+#         iter = 10000)%>%
+#   saveRDS(.,"../saves/m1_24mopart.rds")
+
+m1_24mopart <- readRDS("../saves/m1_24mopart.rds")
 
 # model excluding condition
 
-m2_24mopart = brm(sum_part_act ~ 
-          apparatus,
-        data= data_24,
-        family = poisson(),
-        control = list(adapt_delta = 0.90),
-        sample_prior = F,
-        save_all_pars = T,
-        iter = 10000)
+# m2_24mopart = brm(sum_part_act ~
+#           apparatus,
+#         data= data_24,
+#         family = poisson(),
+#         control = list(adapt_delta = 0.90),
+#         sample_prior = F,
+#         save_all_pars = T,
+#         chains = 4,
+#         cores = 4,
+#         iter = 10000)%>%
+#   saveRDS(.,"../saves/m2_24mopart.rds")
+
+m2_24mopart <- readRDS("../saves/m2_24mopart.rds")
 
 
 
@@ -497,28 +510,14 @@ weights_24mo_part <- model_weights(m1_24mopart, m2_24mopart, weights = "waic")
 data_frame(
   model = c("model w/ condition","model w/o conditon"),
   WAIC = c(
-    m24_waic_part$m1_24mopart$estimates[3,1],
-    m24_waic_part$m2_24mopart$estimates[3,1]),
-  SE = c(m24_waic_part$m1_24mopart$estimates[3,2],
-         m24_waic_part$m2_24mopart$estimates[3,2]),
+    m24_waic_part$loo$m1_24mopart$estimates[3,1],
+    m24_waic_part$loo$m2_24mopart$estimates[3,1]),
+  SE = c(m24_waic_part$loo$m1_24mopart$estimates[3,2],
+         m24_waic_part$loo$m2_24mopart$estimates[3,2]),
   weight = c(weights_24mo_part[1],
              weights_24mo_part[2]))%>%
   kable(digits = 2)
 ```
-
-### Bayes Factor
-
-```{r bayes factor for condition 24mo partial actions, results='hide'}
-bf_24mo_part <- bayes_factor(m1_24mopart,m2_24mopart, log = FALSE, maxiter = 5000)
-```
-
-```{r}
-data_frame(
-  comparison = c("model w condition vs. w/o condition"),
-  BF_10 = c(bf_24mo_part$bf))%>%
-  kable(digits = 2)
-```
-
 
 ### Summary for model including condition
 
@@ -529,9 +528,103 @@ fixef(m1_24mopart)%>%
 
 #### Density plots
 
-```{r plot for 24mo model partial actions}
+```{r plot for 24mo model partial actions, fig.align="center", out.width="60%"}
 
-bayesplot::mcmc_areas(as.array(m1_24mopart), pars = c("b_Intercept","b_conditioniconic", "b_apparatusboxing"), prob = 0.95)+
+bayesplot::mcmc_areas(as.array(m1_24mopart), 
+                      pars = c("b_Intercept","b_conditioniconic", "b_apparatusboxing"), 
+                      prob = 0.95)+
+  geom_vline(xintercept = 0, lty = 2, col = "black")+
+  theme_few()
+
+```
+
+# Study 1b: Replication with 3-year-old children using video demonstrations
+
+## Methods
+
+The apparatuses, gestures and basic procedure were the same as in study 1. Children were tested in a room in a child laboratory. Parents stayed outside the room. When entering the room, children found some marbles on the floor and were encouraged to put them on the marble run. Next, the experimenter drew their attention to the screen. The screen was embedded in a card board box to look less like a computer screen. The experimenter then initiated a contingent interaction between the child and the person shown on the screen (demonstrator). The goal was to make the child believe that the demonstrator was interacting with them. Videos were embedded in a PowerPoint presentation and the experimenter could start, stop and replay videos via a remote control in her pocket. After each interaction sequence, the the screen showed a red curtain. The videos that were used in test trials can be found in the associated online repository.
+
+In the beginning, the demonstrator introduced herself and asked the child what they were doing. The experimenter encouraged the child to say that they were playing with a marble run. Then, the demonstrator said they also enjoy playing with the marble run. Next, the experimenter retrieved the first training box and told the child that the demonstrator also had a similar box. Then, the demonstrator pulled out the same training box and demonstrated how to open it. The same sequence was repeated for the second training box. Next, the experimenter placed the first test apparatus in front of the child and again encouraged the child to look to the screen. On the screen, the demonstrator retrieved the same test box, touched the two handles and then produced four iconic gestures (same as in study 1). The experimenter replayed the video showing the touching of the handles and the iconic gestures throughout the duration of the trial. 
+
+The trial ended when the child either openend the box or after 2 minutes passed. If the child did not open the box, the experimenter moved the box without showing how it was openend. The second trial began with the placing of the second box in front of the child and proceeded in the same way.
+
+## Models for box opening
+
+```{r}
+data_36_rep <- data%>%
+  filter(group == "36mo_replication")
+
+# model with condition
+
+# m1_36_rep = brm(solve ~
+#           condition + apparatus + (1|subject),
+#         data= data_36_rep,
+#         family = bernoulli(),
+#         control = list(adapt_delta = 0.90),
+#         sample_prior = F,
+#         chains = 4,
+#         cores = 4,
+#         save_all_pars = T,
+#         iter = 10000)%>%
+#   saveRDS(.,"../saves/m1_36_rep.rds")
+
+m1_36_rep <- readRDS("../saves/m1_36_rep.rds")
+
+# model without condition 
+
+# m2_36_rep = brm(solve ~
+#           apparatus + (1|subject),
+#         data= data_36_rep,
+#         family = bernoulli(),
+#         control = list(adapt_delta = 0.90),
+#         sample_prior = F,
+#         save_all_pars = T,
+#         chains = 4,
+#         cores = 4,
+#         iter = 10000)%>%
+#   saveRDS(.,"../saves/m2_36_rep.rds")
+
+m2_36_rep <- readRDS("../saves/m2_36_rep.rds")
+
+```
+
+
+### WAIC
+
+```{r condition model reolication waic}
+waic_36mo_rep <- brms::WAIC(m1_36_rep,m2_36_rep, compare = F)
+
+weights_36mo_rep <- model_weights(m1_36_rep, m2_36_rep, weights = "waic")
+
+data_frame(
+  model = c("model w/ condition","model w/o conditon"),
+  WAIC = c(
+    waic_36mo_rep$loos$m1_36_rep$estimates[3,1],
+    waic_36mo_rep$loos$m2_36_rep$estimates[3,1]),
+  SE = c(waic_36mo_rep$loos$m1_36_rep$estimates[3,2],
+         waic_36mo_rep$loos$m2_36_rep$estimates[3,2]),
+  weight = c(weights_36mo_rep[1],
+             weights_36mo_rep[2]))%>%
+  kable(digits = 2)
+
+
+
+```
+
+### Summary for model including condition
+
+```{r summary for condition model replication}
+fixef(m1_36_rep)%>%
+  kable(digits = 2)
+```
+
+### Density plots
+
+```{r plot for condition model replication, fig.align="center", out.width="60%"}
+
+bayesplot::mcmc_areas(as.array(m1_36_rep), 
+                      pars = c("b_Intercept","b_conditioniconic", "b_apparatusboxing"), 
+                      prob = 0.95)+
   geom_vline(xintercept = 0, lty = 2, col = "black")+
   theme_few()
 
@@ -546,29 +639,36 @@ bayesplot::mcmc_areas(as.array(m1_24mopart), pars = c("b_Intercept","b_condition
 ## subsetting the data
 ape_data <- data %>%
   filter(group != "24mo",
-         group != "36mo")
+         group != "36mo",
+         group != "36mo_replication")
 
 ## model including condition
 
-m1ape = brm(solve ~ 
-          condition + apparatus,
-        data= ape_data,
-        family = bernoulli(),
-        control = list(adapt_delta = 0.90),
-        sample_prior = F,
-        save_all_pars = T,
-        iter = 10000)
+# m1ape = brm(solve ~ 
+#           condition + apparatus,
+#         data= ape_data,
+#         family = bernoulli(),
+#         control = list(adapt_delta = 0.90),
+#         sample_prior = F,
+#         save_all_pars = T,
+#         iter = 10000)%>%
+#   saveRDS(.,"../saves/m1ape.rds")
+
+m1ape <- readRDS("../saves/m1ape.rds")
 
 # model without condition 
 
-m2ape = brm(solve ~ 
-          apparatus,
-        data= ape_data,
-        family = bernoulli(),
-        control = list(adapt_delta = 0.90),
-        sample_prior = F,
-        save_all_pars = T,
-        iter = 10000)
+# m2ape = brm(solve ~ 
+#           apparatus,
+#         data= ape_data,
+#         family = bernoulli(),
+#         control = list(adapt_delta = 0.90),
+#         sample_prior = F,
+#         save_all_pars = T,
+#         iter = 10000)%>%
+#   saveRDS(.,"../saves/m2ape.rds")
+
+m2ape <- readRDS("../saves/m2ape.rds")
 ```
 
 ### WAIC
@@ -582,29 +682,14 @@ ape_weights <- model_weights(m1ape, m2ape, weights = "waic")
 data_frame(
   model = c("model w/ condition","model w/o conditon"),
   WAIC = c(
-    ape_waic$m1ape$estimates[3,1],
-    ape_waic$m2ape$estimates[3,1]),
-  SE = c(ape_waic$m1ape$estimates[3,2],
-         ape_waic$m2ape$estimates[3,2]),
+    ape_waic$loo$m1ape$estimates[3,1],
+    ape_waic$loo$m2ape$estimates[3,1]),
+  SE = c(ape_waic$loo$m1ape$estimates[3,2],
+         ape_waic$loo$m2ape$estimates[3,2]),
   weight = c(ape_weights[1],
              ape_weights[2]))%>%
   kable(digits = 2)
 ```
-
-### Bayes Factor
-
-```{r bayes factor for condition ape model, results='hide'}
-
-bf_ape <- bayes_factor(m1ape,m2ape, log = FALSE, maxiter = 5000)
-```
-
-```{r}
-data_frame(
-  comparison = c("model w condition vs. w/o condition"),
-  BF_10 = c(bf_ape$bf))%>%
-  kable(digits = 2)
-```
-
 
 ### Summary for model including condition
 
@@ -616,9 +701,11 @@ fixef(m1ape)%>%
 
 #### Density plots
 
-```{r plot for ape model}
+```{r plot for ape model, fig.align="center", out.width="60%"}
 
-bayesplot::mcmc_areas(as.array(m1ape), pars = c("b_Intercept","b_conditioniconic", "b_apparatusboxing"), prob = 0.95)+
+bayesplot::mcmc_areas(as.array(m1ape), 
+                      pars = c("b_Intercept","b_conditioniconic", "b_apparatusboxing"), 
+                      prob = 0.95)+
   geom_vline(xintercept = 0, lty = 2, col = "black")+
   theme_few()
 
@@ -630,17 +717,19 @@ bayesplot::mcmc_areas(as.array(m1ape), pars = c("b_Intercept","b_conditioniconic
 
 Transparent dots show individual data points. Solid dots show means with 95% CI.
 
-```{r plot partial actions apes}
+```{r plot partial actions apes, echo = F, out.width="60%", fig.align="center"}
 
 plot4 <- data %>%
   filter(group != "24mo",
-         group != "36mo")
+         group != "36mo",
+         group != "36mo_replication")
 
 library(gmodels)
 
 plot5 <- data %>%
   filter(group != "24mo",
-         group != "36mo")%>%
+         group != "36mo",
+         group != "36mo_replication")%>%
   group_by(condition)%>%
   summarize(mean = mean(sum_part_act),
          lci = ci(sum_part_act)[2],
@@ -648,9 +737,9 @@ plot5 <- data %>%
   
 ggplot()+
   geom_jitter(data = plot4, aes(x = condition, y = sum_part_act, col = condition), height = 0, width = 0.2,alpha = 0.5)+
-  geom_pointrange(data = plot5, aes(x = condition, y = mean, ymin = lci, ymax = uci, col = condition), size = 1)+
+  geom_pointrange(data = plot5, aes(x = condition, y = mean, ymin = lci, ymax = uci, col = condition), pch = 5)+
   labs(x="",y="Partial Actions")+
-  scale_color_solarized(name = "Condition")+
+  scale_color_colorblind(name = "Condition")+
   theme_few()+
   theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
 
@@ -661,26 +750,32 @@ ggplot()+
 
 ## model including condition 
 
-m1apepart = brm(sum_part_act ~ 
-          condition + apparatus,
-        data= ape_data,
-        family = poisson(),
-        control = list(adapt_delta = 0.90),
-        sample_prior = F,
-        save_all_pars = T,
-        iter = 10000)
+# m1apepart = brm(sum_part_act ~
+#           condition + apparatus,
+#         data= ape_data,
+#         family = poisson(),
+#         control = list(adapt_delta = 0.90),
+#         sample_prior = F,
+#         save_all_pars = T,
+#         iter = 10000)%>%
+#   saveRDS(.,"../saves/m1apepart.rds")
+
+m1apepart <- readRDS("../saves/m1apepart.rds")
 
 
 # model without condition
 
-m2apepart = brm(sum_part_act ~ 
-          apparatus,
-        data= ape_data,
-        family = poisson(),
-        control = list(adapt_delta = 0.90),
-        sample_prior = F,
-        save_all_pars = T,
-        iter = 10000)
+# m2apepart = brm(sum_part_act ~
+#           apparatus,
+#         data= ape_data,
+#         family = poisson(),
+#         control = list(adapt_delta = 0.90),
+#         sample_prior = F,
+#         save_all_pars = T,
+#         iter = 10000)%>%
+#   saveRDS(.,"../saves/m2apepart.rds")
+
+m2apepart <- readRDS("../saves/m2apepart.rds")
 
 ```
 
@@ -694,28 +789,14 @@ ape_weights_part <- model_weights(m1apepart, m1apepart, weights = "waic")
 data_frame(
   model = c("model w/ condition","model w/o conditon"),
   WAIC = c(
-    ape_waic_part$m1apepart$estimates[3,1],
-    ape_waic_part$m2apepart$estimates[3,1]),
-  SE = c(ape_waic_part$m1apepart$estimates[3,2],
-         ape_waic_part$m2apepart$estimates[3,2]),
+    ape_waic_part$loo$m1apepart$estimates[3,1],
+    ape_waic_part$loo$m2apepart$estimates[3,1]),
+  SE = c(ape_waic_part$loo$m1apepart$estimates[3,2],
+         ape_waic_part$loo$m2apepart$estimates[3,2]),
   weight = c(ape_weights_part[1],
              ape_weights_part[2]))%>%
   kable(digits = 2)
 ```
-
-### Bayes Factor
-
-```{r bayes factor ape partial actions, results='hide'}
-bf_ape_part <- bayes_factor(m1apepart,m2apepart, log = FALSE, maxiter = 5000)
-```
-
-```{r}
-data_frame(
-  comparison = c("model w condition vs. w/o condition"),
-  BF_10 = c(bf_ape_part$bf))%>%
-  kable(digits = 2)
-```
-
 ### Summary for model including condition
 
 ```{r summary for ape model partial actions}
@@ -727,9 +808,11 @@ fixef(m1apepart)%>%
 
 #### Density plots
 
-```{r plot for ape model partial actions}
+```{r plot for ape model partial actions, fig.align="center", out.width="60%"}
 
-bayesplot::mcmc_areas(as.array(m1apepart), pars = c("b_Intercept","b_conditioniconic", "b_apparatusboxing"), prob = 0.95)+
+bayesplot::mcmc_areas(as.array(m1apepart), 
+                      pars = c("b_Intercept","b_conditioniconic", "b_apparatusboxing"), 
+                      prob = 0.95)+
   geom_vline(xintercept = 0, lty = 2, col = "black")+
   theme_few()
 
